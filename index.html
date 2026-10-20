@@ -244,6 +244,36 @@
   #rotateHint.show{display:flex;}
   #rotateHint .ok{background:var(--gold); color:#241d08; border-color:var(--gold); font-weight:600; min-height:0; padding:6px 12px; font-size:13px;}
   #rotateHint .no{background:none; border:none; color:var(--ink-dim); min-height:0; padding:4px 8px; font-size:16px;}
+
+  /* ===== 软横屏（旋转内容，兼容微信等锁竖屏的浏览器） ===== */
+  body.soft-landscape{
+    position:fixed; top:0; left:0;
+    width:100vh; height:100vw; min-height:0;
+    transform-origin:0 0;
+    transform:rotate(90deg) translate(-100vh,0);
+    overflow:hidden;
+  }
+  .controls button.on{background:var(--gold); color:#241d08; border-color:var(--gold); font-weight:600;}
+  body.soft-landscape .vol{display:none;}
+  body.soft-landscape header{padding:5px 12px; gap:6px;}
+  body.soft-landscape .brand{font-size:15px;}
+  body.soft-landscape .controls{gap:6px;}
+  body.soft-landscape .controls button{min-height:32px; padding:4px 10px; font-size:12px;}
+  body.soft-landscape #playPanel{padding:5px 12px; gap:4px;}
+  body.soft-landscape .play-title{font-size:13px;}
+  body.soft-landscape .score-row{font-size:11px; gap:8px;}
+  body.soft-landscape .score-row .s b{font-size:13px;}
+  body.soft-landscape .play-acts{gap:6px;}
+  body.soft-landscape .play-acts button{min-height:30px; padding:4px 8px; font-size:11px;}
+  body.soft-landscape .speed input{width:70px;}
+  body.soft-landscape .note-strip{padding:2px;}
+  body.soft-landscape .chip{font-size:11px; min-width:28px; padding:3px 6px;}
+  body.soft-landscape #keys{height:calc(100vw - 150px); min-height:160px; max-height:320px;}
+  body.soft-landscape .piano-wrap{padding:8px 10px 0;}
+  body.soft-landscape .zoom-bar{padding:3px 0 6px; gap:6px;}
+  body.soft-landscape .zoom-bar button{min-height:32px; padding:4px 10px; font-size:13px;}
+  body.soft-landscape .footer{padding:2px; font-size:10px;}
+  body.soft-landscape .modal{width:min(680px, 96vh); max-height:86vw;}
 </style>
 </head>
 <body>
@@ -259,7 +289,7 @@
     <button id="btnRecords">📊 记录</button>
     <button id="btnSettings">⚙️ 设置</button>
     <button id="btnHelp">❓ 教程</button>
-    <button id="btnFullscreen" title="全屏">⛶</button>
+    <button id="btnFullscreen" title="横屏模式">⛶ 横屏</button>
     <div class="vol"><span>音量</span><input type="range" id="volRange" min="0" max="100" value="70"></div>
   </div>
 </header>
@@ -285,8 +315,8 @@
 
 <main>
   <div id="rotateHint">
-    <span>📱 旋转手机至横屏，可看到更多琴键</span>
-    <button class="ok" id="btnRotate">⛶ 全屏</button>
+    <span>📱 横屏可看更多琴键</span>
+    <button class="ok" id="btnRotate">⛶ 横屏</button>
     <button class="no" id="btnHintClose" title="不再提示">✕</button>
   </div>
   <div class="piano-wrap" id="pianoWrap">
@@ -531,6 +561,7 @@ let keyEls = {};
 const FULL_RANGE = [21, 108];
 const COMMON_RANGE = [48, 84];   // C3–C6 常用音域（覆盖全部内置曲目）
 let keyRange = COMMON_RANGE.slice();
+let softLandscape = false;
 const pianoWrap = document.getElementById('pianoWrap');
 const keysEl = document.getElementById('keys');
 
@@ -892,8 +923,10 @@ document.getElementById('zoomFit').addEventListener('click', fitWidth);
 document.getElementById('octLeft').addEventListener('click', ()=> scrollOctave(-1));
 document.getElementById('octRight').addEventListener('click', ()=> scrollOctave(1));
 
-function viewportW(){ return (window.visualViewport && visualViewport.width) || window.innerWidth || document.documentElement.clientWidth; }
-function viewportH(){ return (window.visualViewport && visualViewport.height) || window.innerHeight || document.documentElement.clientHeight; }
+function _physW(){ return (window.visualViewport && visualViewport.width) || window.innerWidth || document.documentElement.clientWidth; }
+function _physH(){ return (window.visualViewport && visualViewport.height) || window.innerHeight || document.documentElement.clientHeight; }
+function viewportW(){ return softLandscape ? _physH() : _physW(); }
+function viewportH(){ return softLandscape ? _physW() : _physH(); }
 
 function fitWidth(){
   const vw = pianoWrap.clientWidth - 20;
@@ -918,25 +951,39 @@ document.getElementById('speedRange').addEventListener('input', e => { if(play) 
 document.getElementById('btnRetry').addEventListener('click', ()=>{ document.getElementById('resultModal').classList.remove('show'); if(lastSong) startSong(lastSong, 'follow'); });
 document.getElementById('btnBackLib').addEventListener('click', ()=>{ document.getElementById('resultModal').classList.remove('show'); renderSongs(); openModal('libraryModal'); });
 
-/* ================= 横屏 / 全屏 ================= */
+/* ================= 横屏（软横屏：旋转内容，兼容微信等） ================= */
 const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
-function goLandscape(){
-  // 只进全屏，不强制锁横屏（锁屏在部分安卓/iOS 上会卡住，改为响应式跟随手机旋转）
+function setFullscreen(on){
+  if(on){
+    const el = document.documentElement;
+    if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+    else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } else {
+    if(document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+    else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
+}
+function toggleSoftLandscape(){
+  softLandscape = !softLandscape;
+  document.body.classList.toggle('soft-landscape', softLandscape);
   document.getElementById('rotateHint').classList.remove('show');
-  const el = document.documentElement;
-  if(el.requestFullscreen){ el.requestFullscreen().catch(()=>{}); }
-  else if(el.webkitRequestFullscreen){ el.webkitRequestFullscreen(); }
+  const btn = document.getElementById('btnFullscreen');
+  btn.classList.toggle('on', softLandscape);
+  btn.textContent = softLandscape ? '↺ 竖屏' : '⛶ 横屏';
+  setFullscreen(softLandscape);
+  fitWidth();
 }
 function maybeShowRotateHint(){
   if(!isTouch) return;
+  if(softLandscape) return;
   try{ if(localStorage.getItem('piano_rotate_hint')==='off') return; }catch(e){}
   const hint = document.getElementById('rotateHint');
   if(viewportH() > viewportW()) hint.classList.add('show');
   else hint.classList.remove('show');
 }
 if(!isTouch) document.getElementById('btnFullscreen').style.display = 'none';
-document.getElementById('btnFullscreen').addEventListener('click', goLandscape);
-document.getElementById('btnRotate').addEventListener('click', goLandscape);
+document.getElementById('btnFullscreen').addEventListener('click', toggleSoftLandscape);
+document.getElementById('btnRotate').addEventListener('click', toggleSoftLandscape);
 document.getElementById('btnHintClose').addEventListener('click', ()=>{
   document.getElementById('rotateHint').classList.remove('show');
   try{ localStorage.setItem('piano_rotate_hint','off'); }catch(e){}
