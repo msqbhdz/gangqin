@@ -42,7 +42,7 @@
     display:flex; align-items:center; justify-content:space-between; gap:10px;
     padding:10px 14px; flex-wrap:wrap; flex-shrink:0;
     border-bottom:1px solid rgba(232,196,107,.15);
-    backdrop-filter:blur(8px);
+    background:rgba(20,16,34,.85);
     z-index:20;
   }
   .brand{font-size:18px; font-weight:700; letter-spacing:1px; white-space:nowrap;}
@@ -62,13 +62,16 @@
   button.danger{color:#f6b6b6;}
   .vol{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-dim);}
   input[type=range]{accent-color:var(--gold); width:110px; touch-action:pan-x;}
+  .range-toggle{display:flex; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); border-radius:10px; overflow:hidden; flex-shrink:0;}
+  .range-toggle button{border:none; background:none; border-radius:0; padding:8px 12px; font-size:13px; min-height:40px; color:var(--ink-dim);}
+  .range-toggle button.on{background:var(--gold); color:#241d08; font-weight:600;}
 
   /* ===== 跟奏面板（正常文档流，位于顶栏与钢琴之间） ===== */
   #playPanel{
     display:none; flex-direction:column; gap:8px; flex-shrink:0;
     background:linear-gradient(180deg, rgba(20,16,34,.98), rgba(20,16,34,.9));
     border-bottom:1px solid var(--panel-line);
-    padding:10px 14px; backdrop-filter:blur(8px); z-index:15;
+    padding:10px 14px; z-index:15;
   }
   #playPanel.show{display:flex;}
   .play-top{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
@@ -143,7 +146,7 @@
   .overlay{
     position:fixed; inset:0; background:rgba(8,6,16,.66);
     display:none; align-items:center; justify-content:center; z-index:100;
-    padding:16px; backdrop-filter:blur(4px);
+    padding:16px;
   }
   .overlay.show{display:flex;}
   .modal{
@@ -248,11 +251,15 @@
 <header>
   <div class="brand">🎹 网页钢琴 <span class="en">WEB PIANO</span></div>
   <div class="controls">
+    <div class="range-toggle" id="rangeToggle">
+      <button id="rangeCommon">常用键</button>
+      <button id="rangeFull">全部键</button>
+    </div>
     <button id="btnLibrary">🎼 曲库</button>
     <button id="btnRecords">📊 记录</button>
     <button id="btnSettings">⚙️ 设置</button>
     <button id="btnHelp">❓ 教程</button>
-    <button id="btnFullscreen" title="全屏横屏">⛶</button>
+    <button id="btnFullscreen" title="全屏">⛶</button>
     <div class="vol"><span>音量</span><input type="range" id="volRange" min="0" max="100" value="70"></div>
   </div>
 </header>
@@ -278,8 +285,8 @@
 
 <main>
   <div id="rotateHint">
-    <span>📱 横屏使用可看到更多琴键</span>
-    <button class="ok" id="btnRotate">⛶ 横屏</button>
+    <span>📱 旋转手机至横屏，可看到更多琴键</span>
+    <button class="ok" id="btnRotate">⛶ 全屏</button>
     <button class="no" id="btnHintClose" title="不再提示">✕</button>
   </div>
   <div class="piano-wrap" id="pianoWrap">
@@ -355,7 +362,7 @@
     <button class="close" data-close="helpModal">✕</button>
     <h2>❓ 使用教程</h2>
     <div class="sub">三步上手</div>
-    <div class="setting-row"><div class="name">① 自由弹奏</div><div class="desc">点按琴键发声；左右滑动或点 ◀ ▶ 切换音域。电脑上可用键盘弹奏，按住 <b>Shift</b> 整体升高一个八度。</div></div>
+    <div class="setting-row"><div class="name">① 自由弹奏</div><div class="desc">点按琴键发声；顶部「常用键 / 全部键」切换音域，左右滑动或点 ◀ ▶ 移动。电脑上可用键盘弹奏，按住 <b>Shift</b> 升高一个八度。手机建议横屏使用。</div></div>
     <div class="setting-row"><div class="name">② 跟奏学曲</div><div class="desc">打开「曲库」选一首 → 先「试听」→ 再「跟奏」：看到高亮琴键就按对应的键，系统给出准确率 / 节奏 / 连奏评分。</div></div>
     <div class="setting-row"><div class="name">③ 键盘对照（电脑）</div>
       <div class="desc">白键：<b>Z X C V B N M</b>＝C3–B3；<b>A S D F G H J K L ;</b>＝C4–E5；<b>Q W E R T Y U I O P</b>＝F5–A6<br>黑键：<b>1 2 3 4 5 6 7 8 9 0 - =</b>＝C#3–D#5</div></div>
@@ -520,13 +527,18 @@ function buildNotes(song){
 
 /* ================= 钢琴键盘渲染 ================= */
 let keyW = 50;
-const keyEls = {};
+let keyEls = {};
+const FULL_RANGE = [21, 108];
+const COMMON_RANGE = [48, 84];   // C3–C6 常用音域（覆盖全部内置曲目）
+let keyRange = COMMON_RANGE.slice();
 const pianoWrap = document.getElementById('pianoWrap');
 const keysEl = document.getElementById('keys');
 
+function countWhite(r){ let c=0; for(let m=r[0];m<=r[1];m++) if(!isBlack(m)) c++; return c; }
+
 function layoutKeys(){
   const whites = [];
-  for(let m=21;m<=108;m++) if(!isBlack(m)) whites.push(m);
+  for(let m=keyRange[0];m<=keyRange[1];m++) if(!isBlack(m)) whites.push(m);
   const whiteLeft = {};
   whites.forEach((m,i)=> whiteLeft[m] = i*keyW);
   const blackW = Math.max(16, keyW*0.62);
@@ -536,7 +548,7 @@ function layoutKeys(){
     el.style.width = (keyW-1)+'px';
     el.style.height = '100%';
   }
-  for(let m=21;m<=108;m++){
+  for(let m=keyRange[0];m<=keyRange[1];m++){
     if(!isBlack(m)) continue;
     const el = keyEls[m];
     const left = (whiteLeft[m-1] + whiteLeft[m+1])/2 - blackW/2;
@@ -549,7 +561,8 @@ function layoutKeys(){
 
 function buildKeys(){
   keysEl.innerHTML = '';
-  for(let m=21;m<=108;m++){
+  keyEls = {};
+  for(let m=keyRange[0];m<=keyRange[1];m++){
     const el = document.createElement('div');
     el.className = 'key ' + (isBlack(m) ? 'black' : 'white');
     if(m%12===0) el.classList.add('isC');
@@ -600,7 +613,9 @@ document.addEventListener('keydown', e => {
   if(pressedKeys.has(midi)) return;
   pressedKeys.add(midi);
   Audio.ensure();
-  const el = keyEls[midi]; if(el) press(midi, el, 0.95);
+  const el = keyEls[midi];
+  if(el) press(midi, el, 0.95);
+  else Audio.noteOn(midi, 0.95);
 });
 document.addEventListener('keyup', e => {
   const k = e.key.toLowerCase();
@@ -877,14 +892,18 @@ document.getElementById('zoomFit').addEventListener('click', fitWidth);
 document.getElementById('octLeft').addEventListener('click', ()=> scrollOctave(-1));
 document.getElementById('octRight').addEventListener('click', ()=> scrollOctave(1));
 
+function viewportW(){ return (window.visualViewport && visualViewport.width) || window.innerWidth || document.documentElement.clientWidth; }
+function viewportH(){ return (window.visualViewport && visualViewport.height) || window.innerHeight || document.documentElement.clientHeight; }
+
 function fitWidth(){
   const vw = pianoWrap.clientWidth - 20;
-  const isPhone = window.innerWidth < 700 || (window.innerWidth < 1000 && window.innerHeight < 560);
+  const w = viewportW(), h = viewportH();
+  const isPhone = w < 700 || (w < 1000 && h < 560);
   if(isPhone){
-    const perScreen = window.innerWidth >= 700 ? 11 : 7; // 横屏显示更多白键
+    const perScreen = w >= 700 ? 11 : 7; // 横屏显示更多白键
     keyW = Math.max(42, Math.min(72, vw/perScreen));
   } else {
-    keyW = Math.max(28, Math.min(90, vw/52));
+    keyW = Math.max(28, Math.min(90, vw/countWhite(keyRange)));
   }
   layoutKeys();
 }
@@ -902,22 +921,17 @@ document.getElementById('btnBackLib').addEventListener('click', ()=>{ document.g
 /* ================= 横屏 / 全屏 ================= */
 const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
 function goLandscape(){
+  // 只进全屏，不强制锁横屏（锁屏在部分安卓/iOS 上会卡住，改为响应式跟随手机旋转）
   document.getElementById('rotateHint').classList.remove('show');
   const el = document.documentElement;
-  const lock = () => {
-    if(window.screen && screen.orientation && screen.orientation.lock){
-      screen.orientation.lock('landscape').catch(()=>{});
-    }
-  };
-  if(el.requestFullscreen){ el.requestFullscreen().then(lock).catch(()=>{}); }
-  else if(el.webkitRequestFullscreen){ el.webkitRequestFullscreen(); lock(); }
-  else { lock(); }
+  if(el.requestFullscreen){ el.requestFullscreen().catch(()=>{}); }
+  else if(el.webkitRequestFullscreen){ el.webkitRequestFullscreen(); }
 }
 function maybeShowRotateHint(){
   if(!isTouch) return;
   try{ if(localStorage.getItem('piano_rotate_hint')==='off') return; }catch(e){}
   const hint = document.getElementById('rotateHint');
-  if(window.innerHeight > window.innerWidth) hint.classList.add('show');
+  if(viewportH() > viewportW()) hint.classList.add('show');
   else hint.classList.remove('show');
 }
 if(!isTouch) document.getElementById('btnFullscreen').style.display = 'none';
@@ -928,20 +942,33 @@ document.getElementById('btnHintClose').addEventListener('click', ()=>{
   try{ localStorage.setItem('piano_rotate_hint','off'); }catch(e){}
 });
 
+/* ================= 常用键 / 全部键 切换 ================= */
+function setRange(mode){
+  keyRange = (mode==='common' ? COMMON_RANGE : FULL_RANGE).slice();
+  document.getElementById('rangeCommon').classList.toggle('on', mode==='common');
+  document.getElementById('rangeFull').classList.toggle('on', mode==='full');
+  buildKeys();
+  fitWidth();
+  try{ localStorage.setItem('piano_keyrange', mode); }catch(e){}
+}
+document.getElementById('rangeCommon').addEventListener('click', ()=> setRange('common'));
+document.getElementById('rangeFull').addEventListener('click', ()=> setRange('full'));
+
 /* ================= 初始化 ================= */
+try{ const saved = localStorage.getItem('piano_keyrange'); if(saved==='full') keyRange = FULL_RANGE.slice(); }catch(e){}
 buildKeys();
+document.getElementById('rangeCommon').classList.toggle('on', keyRange[0]===COMMON_RANGE[0]);
+document.getElementById('rangeFull').classList.toggle('on', keyRange[0]===FULL_RANGE[0]);
 loadSettings();
 fitWidth();
 maybeShowRotateHint();
 // 首次交互唤醒音频（iOS 需在用户手势内 resume）
 ['pointerdown','keydown','touchstart','touchend','click'].forEach(ev =>
   window.addEventListener(ev, () => Audio.ensure(), {passive:true}));
-window.addEventListener('resize', ()=>{
-  const isPhone = window.innerWidth < 700 || (window.innerWidth < 1000 && window.innerHeight < 560);
-  if(isPhone) fitWidth();
-  maybeShowRotateHint();
-});
-window.addEventListener('orientationchange', ()=>{ setTimeout(()=>{ fitWidth(); maybeShowRotateHint(); }, 300); });
+function reFit(){ fitWidth(); maybeShowRotateHint(); }
+if(window.visualViewport) window.visualViewport.addEventListener('resize', reFit);
+window.addEventListener('resize', reFit);
+window.addEventListener('orientationchange', ()=>{ [50,150,300,600].forEach(ms => setTimeout(reFit, ms)); });
 
 })();
 </script>
