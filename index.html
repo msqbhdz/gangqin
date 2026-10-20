@@ -1165,6 +1165,19 @@ document.getElementById('btnBackLib').addEventListener('click', ()=>{ document.g
 
 /* ================= 横屏（软横屏：旋转内容，兼容微信等） ================= */
 const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
+function applySoftLandscape(){
+  if(!softLandscape) return;
+  const w = _physW(), h = _physH();
+  const bs = document.body.style;
+  bs.position = 'fixed';
+  bs.top = '0'; bs.left = '0';
+  bs.width = h + 'px';
+  bs.height = w + 'px';
+  bs.minHeight = '0';
+  bs.transformOrigin = '0 0';
+  bs.transform = 'translateX('+w+'px) rotate(90deg)';
+  bs.overflow = 'hidden';
+}
 function toggleSoftLandscape(){
   softLandscape = !softLandscape;
   document.body.classList.toggle('soft-landscape', softLandscape);
@@ -1172,6 +1185,8 @@ function toggleSoftLandscape(){
   const btn = document.getElementById('btnFullscreen');
   btn.classList.toggle('on', softLandscape);
   btn.textContent = softLandscape ? '↺ 竖屏' : '⛶ 横屏';
+  if(softLandscape){ applySoftLandscape(); }
+  else { document.body.style.cssText = ''; }
   fitWidth();
   window.scrollTo(0, 0);
   document.documentElement.scrollLeft = 0;
@@ -1217,7 +1232,7 @@ maybeShowRotateHint();
 // 首次交互唤醒音频（iOS 需在用户手势内 resume）
 ['pointerdown','keydown','touchstart','touchend','click'].forEach(ev =>
   window.addEventListener(ev, () => Audio.ensure(), {passive:true}));
-function reFit(){ fitWidth(); maybeShowRotateHint(); }
+function reFit(){ fitWidth(); maybeShowRotateHint(); applySoftLandscape(); }
 if(window.visualViewport) window.visualViewport.addEventListener('resize', reFit);
 window.addEventListener('resize', reFit);
 window.addEventListener('orientationchange', ()=>{ [50,150,300,600].forEach(ms => setTimeout(reFit, ms)); });
