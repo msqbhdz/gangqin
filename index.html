@@ -247,10 +247,10 @@
 
   /* ===== 软横屏（旋转内容，兼容微信等锁竖屏的浏览器） ===== */
   body.soft-landscape{
-    position:fixed; top:0; left:0;
+    position:fixed; top:0; left:100vw;
     width:100vh; height:100vw; min-height:0;
     transform-origin:0 0;
-    transform:rotate(90deg) translate(-100vh,0);
+    transform:rotate(90deg);
     overflow:hidden;
   }
   .controls button.on{background:var(--gold); color:#241d08; border-color:var(--gold); font-weight:600;}
@@ -953,16 +953,6 @@ document.getElementById('btnBackLib').addEventListener('click', ()=>{ document.g
 
 /* ================= 横屏（软横屏：旋转内容，兼容微信等） ================= */
 const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
-function setFullscreen(on){
-  if(on){
-    const el = document.documentElement;
-    if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
-    else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-  } else {
-    if(document.exitFullscreen) document.exitFullscreen().catch(()=>{});
-    else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
-  }
-}
 function toggleSoftLandscape(){
   softLandscape = !softLandscape;
   document.body.classList.toggle('soft-landscape', softLandscape);
@@ -970,7 +960,6 @@ function toggleSoftLandscape(){
   const btn = document.getElementById('btnFullscreen');
   btn.classList.toggle('on', softLandscape);
   btn.textContent = softLandscape ? '↺ 竖屏' : '⛶ 横屏';
-  setFullscreen(softLandscape);
   fitWidth();
 }
 function maybeShowRotateHint(){
