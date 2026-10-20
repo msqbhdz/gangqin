@@ -256,10 +256,10 @@
 
   /* ===== 软横屏（旋转内容，兼容微信等锁竖屏的浏览器） ===== */
   body.soft-landscape{
-    position:fixed; top:0; left:100vw;
+    position:fixed; top:0; left:0;
     width:100vh; height:100vw; min-height:0;
     transform-origin:0 0;
-    transform:rotate(90deg);
+    transform:translateX(100vw) rotate(90deg);
     overflow:hidden;
   }
   .controls button.on{background:var(--gold); color:#241d08; border-color:var(--gold); font-weight:600;}
@@ -1162,6 +1162,10 @@ function toggleSoftLandscape(){
   btn.classList.toggle('on', softLandscape);
   btn.textContent = softLandscape ? '↺ 竖屏' : '⛶ 横屏';
   fitWidth();
+  window.scrollTo(0, 0);
+  document.documentElement.scrollLeft = 0;
+  document.body.scrollLeft = 0;
+  pianoWrap.scrollLeft = 0;
 }
 function maybeShowRotateHint(){
   if(!isTouch) return;
