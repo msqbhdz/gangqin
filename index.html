@@ -22,14 +22,15 @@
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0; height:100%;}
-  html{height:100%;}
+  html{height:100%; overflow:hidden; background:#14101f;}
   body{
     font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
     color:var(--ink);
     background:
       radial-gradient(1200px 700px at 50% -10%, rgba(232,196,107,.12), transparent 60%),
       linear-gradient(160deg, var(--bg1), var(--bg2));
-    height:100%; min-height:100vh;
+    height:100vh; min-height:100vh;
+    height:100dvh; min-height:100dvh;
     display:flex; flex-direction:column;
     overflow:hidden;
     overscroll-behavior:none;
@@ -939,6 +940,23 @@ function encodeMp3(samples, sampleRate){
   return new Blob(data, {type:'audio/mpeg'});
 }
 
+async function playRecording(blob){
+  Audio.ensure();
+  if(!Audio.ctx) return;
+  let arrayBuf;
+  try{ arrayBuf = await blob.arrayBuffer(); }
+  catch(e){
+    arrayBuf = await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error); fr.readAsArrayBuffer(blob); });
+  }
+  try{
+    const audioBuf = await Audio.ctx.decodeAudioData(arrayBuf);
+    const src = Audio.ctx.createBufferSource();
+    src.buffer = audioBuf;
+    src.connect(Audio.master);
+    src.start();
+  }catch(e){ alert('播放失败：'+(e&&e.message?e.message:e)); }
+}
+
 const RecDB = {
   db:null,
   open(){
@@ -1014,15 +1032,8 @@ async function renderRecList(){
       if(!r) return;
       const act = b.dataset.act;
       if(act==='play'){
-        // 同步播放，避免 await 后失去用户手势被微信拦截
-        const url = URL.createObjectURL(r.blob);
-        const audio = new Audio(url);
-        audio.style.cssText = 'position:absolute;left:-9999px;top:0;';
-        document.body.appendChild(audio);
-        audio.onended = ()=>{ URL.revokeObjectURL(url); audio.remove(); };
-        audio.onerror = ()=>{ URL.revokeObjectURL(url); audio.remove(); };
-        const p = audio.play();
-        if(p && p.catch) p.catch(()=>{ alert('播放失败，请重试'); });
+        Audio.ensure();
+        playRecording(r.blob);
       } else if(act==='dl'){
         downloadBlob(r.blob, r.name+'.mp3');
       } else if(act==='del'){
