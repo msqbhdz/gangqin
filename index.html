@@ -97,7 +97,7 @@
   /* ===== 主区 ===== */
   main{flex:1; display:flex; flex-direction:column; min-height:0;}
   .piano-wrap{
-    flex:1; overflow-x:auto; overflow-y:hidden; padding:16px 12px 0;
+    flex:1; overflow-x:auto; overflow-y:hidden; padding:16px 12px 0; min-height:0;
     position:relative; scroll-behavior:smooth; overscroll-behavior-x:contain;
     -webkit-overflow-scrolling:touch;
   }
@@ -298,7 +298,6 @@
     <button id="btnRecord">🎙 录音</button>
     <button id="btnRecords">📊 记录</button>
     <button id="btnSettings">⚙️ 设置</button>
-    <button id="btnHelp">❓ 教程</button>
     <button id="btnFullscreen" title="横屏模式">⛶ 横屏</button>
     <div class="vol"><span>音量</span><input type="range" id="volRange" min="0" max="100" value="70"></div>
   </div>
@@ -369,7 +368,7 @@
     <div id="recordsList"></div>
     <div style="text-align:right; margin-top:12px;"><button class="danger" id="btnClearRecords">清空记录</button></div>
     <h2 style="margin-top:22px;">🎙 我的录音</h2>
-    <div class="sub">录音保存在本机浏览器，可播放或下载为 MP3。</div>
+    <div class="sub">录音仅保存在当前应用（微信 / 浏览器各自独立），跨应用请下载 MP3 保存。</div>
     <div id="recList"></div>
   </div>
 </div>
@@ -992,10 +991,12 @@ function downloadBlob(blob, filename){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 15000);
 }
+const recCache = {};
 async function renderRecList(){
   const list = document.getElementById('recList');
   let recs = [];
   try{ recs = await RecDB.list(); }catch(e){ list.innerHTML=''; return; }
+  for(const r of recs) recCache[r.id] = r;
   if(!recs.length){ list.innerHTML='<div class="empty">还没有录音，点顶部「🎙 录音」开始，弹完点「结束」保存。</div>'; return; }
   list.innerHTML = recs.map(r =>
     '<div class="rec-item"><div><div class="r-t">'+r.name+'</div>'+
@@ -1007,23 +1008,25 @@ async function renderRecList(){
     '</div></div>'
   ).join('');
   list.querySelectorAll('button[data-act]').forEach(b=>{
-    b.addEventListener('click', async ()=>{
+    b.addEventListener('click', ()=>{
       const id = Number(b.dataset.id);
-      const all = await RecDB.list();
-      const r = all.find(x=>x.id===id);
+      const r = recCache[id];
       if(!r) return;
       const act = b.dataset.act;
       if(act==='play'){
+        // 同步播放，避免 await 后失去用户手势被微信拦截
         const url = URL.createObjectURL(r.blob);
         const audio = new Audio(url);
-        audio.onended = ()=>URL.revokeObjectURL(url);
-        audio.onerror = ()=>URL.revokeObjectURL(url);
-        audio.play().catch(()=>{});
+        audio.style.cssText = 'position:absolute;left:-9999px;top:0;';
+        document.body.appendChild(audio);
+        audio.onended = ()=>{ URL.revokeObjectURL(url); audio.remove(); };
+        audio.onerror = ()=>{ URL.revokeObjectURL(url); audio.remove(); };
+        const p = audio.play();
+        if(p && p.catch) p.catch(()=>{ alert('播放失败，请重试'); });
       } else if(act==='dl'){
         downloadBlob(r.blob, r.name+'.mp3');
       } else if(act==='del'){
-        await RecDB.remove(id);
-        await renderRecList();
+        RecDB.remove(id).then(()=>{ delete recCache[id]; renderRecList(); });
       }
     });
   });
@@ -1102,7 +1105,6 @@ function saveSettings(){
 document.getElementById('btnLibrary').addEventListener('click', ()=>{ renderSongs(); openModal('libraryModal'); });
 document.getElementById('btnRecords').addEventListener('click', ()=>{ renderRecords(); renderRecList(); openModal('recordsModal'); });
 document.getElementById('btnSettings').addEventListener('click', ()=> openModal('settingsModal'));
-document.getElementById('btnHelp').addEventListener('click', ()=> openModal('helpModal'));
 document.getElementById('btnReplayHelp').addEventListener('click', ()=>{ closeModal('settingsModal'); openModal('helpModal'); });
 document.getElementById('btnClearRecords').addEventListener('click', ()=>{ localStorage.removeItem('piano_records'); renderRecords(); });
 
