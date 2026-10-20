@@ -207,6 +207,40 @@
     .score-row{gap:10px;}
     .play-acts button{font-size:12px; padding:5px 10px;}
   }
+
+  /* ===== 横屏适配（手机横过来） ===== */
+  @media (orientation: landscape) and (max-height: 560px){
+    .vol{display:none;}
+    header{padding:5px 12px; gap:6px;}
+    .brand{font-size:15px;}
+    .controls{gap:6px;}
+    .controls button{min-height:32px; padding:4px 10px; font-size:12px;}
+    #playPanel{padding:5px 12px; gap:4px;}
+    .play-title{font-size:13px;}
+    .score-row{font-size:11px; gap:8px;}
+    .score-row .s b{font-size:13px;}
+    .play-acts{gap:6px;}
+    .play-acts button{min-height:30px; padding:4px 8px; font-size:11px;}
+    .speed input{width:70px;}
+    .note-strip{padding:2px;}
+    .chip{font-size:11px; min-width:28px; padding:3px 6px;}
+    #keys{height:calc(100vh - 150px); min-height:160px; max-height:320px;}
+    .piano-wrap{padding:8px 10px 0;}
+    .zoom-bar{padding:3px 0 6px; gap:6px;}
+    .zoom-bar button{min-height:32px; padding:4px 10px; font-size:13px;}
+    .footer{padding:2px; font-size:10px;}
+  }
+
+  /* ===== 横屏提示横幅 ===== */
+  #rotateHint{
+    display:none; align-items:center; justify-content:center; gap:10px; flex-shrink:0;
+    background:linear-gradient(90deg, rgba(232,196,107,.14), rgba(232,196,107,.04));
+    border-bottom:1px solid var(--panel-line);
+    padding:7px 12px; font-size:13px; color:var(--ink);
+  }
+  #rotateHint.show{display:flex;}
+  #rotateHint .ok{background:var(--gold); color:#241d08; border-color:var(--gold); font-weight:600; min-height:0; padding:6px 12px; font-size:13px;}
+  #rotateHint .no{background:none; border:none; color:var(--ink-dim); min-height:0; padding:4px 8px; font-size:16px;}
 </style>
 </head>
 <body>
@@ -218,6 +252,7 @@
     <button id="btnRecords">📊 记录</button>
     <button id="btnSettings">⚙️ 设置</button>
     <button id="btnHelp">❓ 教程</button>
+    <button id="btnFullscreen" title="全屏横屏">⛶</button>
     <div class="vol"><span>音量</span><input type="range" id="volRange" min="0" max="100" value="70"></div>
   </div>
 </header>
@@ -242,6 +277,11 @@
 </div>
 
 <main>
+  <div id="rotateHint">
+    <span>📱 横屏使用可看到更多琴键</span>
+    <button class="ok" id="btnRotate">⛶ 横屏</button>
+    <button class="no" id="btnHintClose" title="不再提示">✕</button>
+  </div>
   <div class="piano-wrap" id="pianoWrap">
     <div id="keys"></div>
   </div>
@@ -839,8 +879,13 @@ document.getElementById('octRight').addEventListener('click', ()=> scrollOctave(
 
 function fitWidth(){
   const vw = pianoWrap.clientWidth - 20;
-  if(window.innerWidth < 700) keyW = Math.max(42, Math.min(70, vw/7));
-  else keyW = Math.max(28, Math.min(90, vw/52));
+  const isPhone = window.innerWidth < 700 || (window.innerWidth < 1000 && window.innerHeight < 560);
+  if(isPhone){
+    const perScreen = window.innerWidth >= 700 ? 11 : 7; // 横屏显示更多白键
+    keyW = Math.max(42, Math.min(72, vw/perScreen));
+  } else {
+    keyW = Math.max(28, Math.min(90, vw/52));
+  }
   layoutKeys();
 }
 function scrollOctave(dir){
@@ -854,14 +899,49 @@ document.getElementById('speedRange').addEventListener('input', e => { if(play) 
 document.getElementById('btnRetry').addEventListener('click', ()=>{ document.getElementById('resultModal').classList.remove('show'); if(lastSong) startSong(lastSong, 'follow'); });
 document.getElementById('btnBackLib').addEventListener('click', ()=>{ document.getElementById('resultModal').classList.remove('show'); renderSongs(); openModal('libraryModal'); });
 
+/* ================= 横屏 / 全屏 ================= */
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
+function goLandscape(){
+  document.getElementById('rotateHint').classList.remove('show');
+  const el = document.documentElement;
+  const lock = () => {
+    if(window.screen && screen.orientation && screen.orientation.lock){
+      screen.orientation.lock('landscape').catch(()=>{});
+    }
+  };
+  if(el.requestFullscreen){ el.requestFullscreen().then(lock).catch(()=>{}); }
+  else if(el.webkitRequestFullscreen){ el.webkitRequestFullscreen(); lock(); }
+  else { lock(); }
+}
+function maybeShowRotateHint(){
+  if(!isTouch) return;
+  try{ if(localStorage.getItem('piano_rotate_hint')==='off') return; }catch(e){}
+  const hint = document.getElementById('rotateHint');
+  if(window.innerHeight > window.innerWidth) hint.classList.add('show');
+  else hint.classList.remove('show');
+}
+if(!isTouch) document.getElementById('btnFullscreen').style.display = 'none';
+document.getElementById('btnFullscreen').addEventListener('click', goLandscape);
+document.getElementById('btnRotate').addEventListener('click', goLandscape);
+document.getElementById('btnHintClose').addEventListener('click', ()=>{
+  document.getElementById('rotateHint').classList.remove('show');
+  try{ localStorage.setItem('piano_rotate_hint','off'); }catch(e){}
+});
+
 /* ================= 初始化 ================= */
 buildKeys();
 loadSettings();
 fitWidth();
+maybeShowRotateHint();
 // 首次交互唤醒音频（iOS 需在用户手势内 resume）
 ['pointerdown','keydown','touchstart','touchend','click'].forEach(ev =>
   window.addEventListener(ev, () => Audio.ensure(), {passive:true}));
-window.addEventListener('resize', ()=>{ if(window.innerWidth<700) fitWidth(); });
+window.addEventListener('resize', ()=>{
+  const isPhone = window.innerWidth < 700 || (window.innerWidth < 1000 && window.innerHeight < 560);
+  if(isPhone) fitWidth();
+  maybeShowRotateHint();
+});
+window.addEventListener('orientationchange', ()=>{ setTimeout(()=>{ fitWidth(); maybeShowRotateHint(); }, 300); });
 
 })();
 </script>
