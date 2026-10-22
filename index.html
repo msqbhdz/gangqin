@@ -608,7 +608,9 @@ function layoutKeys(){
   for(let m=keyRange[0];m<=keyRange[1];m++){
     if(!isBlack(m)) continue;
     const el = keyEls[m];
-    const left = (whiteLeft[m-1] + whiteLeft[m+1])/2 - blackW/2;
+    // 黑键骑在相邻两个白键的缝隙上，而不是压在某一个白键正中
+    const seam = whiteLeft[m+1] - 0.5;
+    const left = seam - blackW/2;
     el.style.left = left+'px';
     el.style.width = blackW+'px';
     el.style.height = '62%';
